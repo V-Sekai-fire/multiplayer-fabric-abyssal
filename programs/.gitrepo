@@ -1,0 +1,11 @@
+; DO NOT EDIT (unless you know what you are doing)
+;
+; This subdirectory is a git "subrepo", and this file is maintained by the
+; git-subrepo command. See https://github.com/git-commands/git-subrepo#readme
+;
+[subrepo]
+	remote = https://github.com/V-Sekai-fire/multiplayer-fabric-elf-programs.git
+	branch = main
+	commit = 704a859809e7de1df5dc4789ee92ec7f6fb4478a
+	parent = ab574f983f1e2cbd0905d543f948346d0fa009e2
+	cmdver = 0.1.0
