@@ -52,17 +52,6 @@ zone_host = "127.0.0.1"
 zone_port = 7443
 entities_root = NodePath("../Entities")
 
-[node name="StatusHUD" type="Label3D" parent="OperatorRig/CameraPivot/SpringArm3D/Camera3D"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.6, -2.4)
-billboard = 1
-no_depth_test = true
-fixed_size = true
-pixel_size = 0.004
-outline_size = 16
-modulate = Color(1, 1, 1, 1)
-outline_modulate = Color(0, 0, 0, 1)
-text = "connecting..."
-font_size = 48
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("Env")

@@ -42,6 +42,17 @@ var _peer: FabricMultiplayerPeer
 var _entity_nodes: Dictionary = {}   # {int global_id -> Node3D}
 var _entity_last_seen: Dictionary = {} # {int global_id -> int frame_count}
 var _frame_count: int = 0
+var _connect_start: float = 0.0
+var _connected_logged: bool = false
+
+# RTT estimator — SRTT/RTTVAR EWMA matching REPORT_staging_timeout.md:
+#   SRTT   = 7/8 * SRTT   + 1/8 * sample      (alpha = 1/8)
+#   RTTVAR = 3/4 * RTTVAR + 1/4 * |SRTT - sample|  (beta = 1/4)
+# Lean source: PredictiveBVH/Protocol/Build.lean — deltaFromRttTicks
+var _rtt_srtt_ms: float = 0.0
+var _rtt_var_ms: float = 0.0
+var _rtt_measured: bool = false
+var _heartbeat_sent_time: float = 0.0
 
 # Phase-1 pass condition: track zone-crossing entities (256-399) seen and snap events.
 const XING_ID_LO := 256
@@ -69,12 +80,11 @@ func _ready() -> void:
 		var wt := WebTransportPeer.new()
 		wt.create_client(host, port, "/")
 		return wt
+	_connect_start = Time.get_unix_time_from_system()
 	var err := _peer.create_client(zone_host, zone_port)
 	if err != OK:
 		push_error("FabricClient: create_client failed: %d" % err)
 		return
-	# Do NOT set multiplayer.multiplayer_peer — FabricZone uses raw ENet without
-	# the Godot high-level multiplayer handshake. Polling is done manually below.
 	print("FabricClient: connecting to %s:%d" % [zone_host, zone_port])
 
 
@@ -84,13 +94,19 @@ func _process(delta: float) -> void:
 	_peer.poll()  # drive ENet event loop (not set as multiplayer.multiplayer_peer)
 	var status := _peer.get_connection_status()
 	if status != MultiplayerPeer.CONNECTION_CONNECTED:
-		if _frame_count % 64 == 1:
-			print("FabricClient: status=%d frame=%d" % [status, _frame_count])
+		if _frame_count % 600 == 1:
+			var elapsed := int(Time.get_unix_time_from_system() - _connect_start)
+			var rtt_str := ("rtt:%dms±%dms" % [int(_rtt_srtt_ms), int(_rtt_var_ms)]) if _rtt_measured else "rtt:--"
+			print("FabricClient: connecting %s:%d (%ds) %s fabric_status=%d" % [zone_host, zone_port, elapsed, rtt_str, status])
 		_update_hud(status)
 		_update_observer_marker(delta, status)
 		_frame_count += 1
 		return
 
+	if not _connected_logged:
+		_connected_logged = true
+		var elapsed_ms := int((Time.get_unix_time_from_system() - _connect_start) * 1000.0)
+		print("FabricClient: CONNECTED to %s:%d handshake=%dms" % [zone_host, zone_port, elapsed_ms])
 	_frame_count += 1
 	_drain_interest()
 	_cull_stale_entities()
@@ -103,10 +119,10 @@ func _update_hud(status: int) -> void:
 		return
 	var names: Array[String] = ["disconnected", "connecting", "connected"]
 	var status_str: String = names[clampi(status, 0, 2)]
-	_hud.text = "%s  %s:%d\nentities: %d  xing: %d/%d  snaps: %d\nframe: %d" % [
-		status_str, zone_host, zone_port,
-		_entity_nodes.size(), _xing_seen.size(), XING_TOTAL, _snap_count,
-		_frame_count]
+	var rtt_str := "rtt:--" if not _rtt_measured else "rtt:%dms" % int(_rtt_srtt_ms)
+	_hud.text = "%s  %s:%d  %s\nentities: %d  xing: %d/%d  snaps: %d" % [
+		status_str, zone_host, zone_port, rtt_str,
+		_entity_nodes.size(), _xing_seen.size(), XING_TOTAL, _snap_count]
 
 
 func _update_observer_marker(delta: float, status: int) -> void:
@@ -167,10 +183,22 @@ func _send_xr_heartbeat() -> void:
 	_peer.set_transfer_channel(2)
 	_peer.set_transfer_mode(MultiplayerPeer.TRANSFER_MODE_UNRELIABLE)
 	_peer.put_packet(pkt)
+	_heartbeat_sent_time = Time.get_unix_time_from_system()
 
 
 func _drain_interest() -> void:
 	var packets: Array = _peer.drain_channel(CH_INTEREST)
+	if packets.size() > 0 and _heartbeat_sent_time > 0.0:
+		var sample_ms := (Time.get_unix_time_from_system() - _heartbeat_sent_time) * 1000.0
+		_heartbeat_sent_time = 0.0
+		if not _rtt_measured:
+			_rtt_srtt_ms = sample_ms
+			_rtt_var_ms  = sample_ms * 0.5
+			_rtt_measured = true
+			print("FabricClient: first RTT sample %dms (srtt=%dms var=%dms)" % [int(sample_ms), int(_rtt_srtt_ms), int(_rtt_var_ms)])
+		else:
+			_rtt_var_ms  = 0.75 * _rtt_var_ms  + 0.25 * abs(_rtt_srtt_ms - sample_ms)
+			_rtt_srtt_ms = 0.875 * _rtt_srtt_ms + 0.125 * sample_ms
 	for pkt: PackedByteArray in packets:
 		var offset := 0
 		while offset + PACKET_ENTRY_SIZE <= pkt.size():
