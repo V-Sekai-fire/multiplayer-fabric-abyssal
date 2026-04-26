@@ -1,0 +1,14 @@
+[gd_scene load_steps=3 format=3 uid="uid://zone_server_headless"]
+
+[ext_resource type="Script" path="res://scripts/fabric_server.gd" id="1_server"]
+[ext_resource type="Script" path="res://scripts/zone_curtain.gd" id="2_curtain"]
+
+[node name="ZoneServer" type="Node"]
+
+[node name="ZoneCurtains" type="Node3D" parent="."]
+script = ExtResource("2_curtain")
+zone_count = 3
+
+[node name="FabricServer" type="Node" parent="."]
+script = ExtResource("1_server")
+zone_port = 7443

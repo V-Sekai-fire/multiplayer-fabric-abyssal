@@ -8,33 +8,14 @@
 
 [node name="main" type="Node3D"]
 
-[node name="XROrigin3D" type="Node3D" parent="."]
-script = ExtResource("1_xrorigin")
-
-[node name="XRCamera3D" type="XRCamera3D" parent="XROrigin3D"]
-
-[node name="hand_left" type="XRController3D" parent="XROrigin3D"]
-tracker = "left_hand"
-
-[node name="hand_right" type="XRController3D" parent="XROrigin3D"]
-tracker = "right_hand"
-
-[node name="canvas" type="Node3D" parent="."]
-script = ExtResource("2_pinch")
-hand_left = NodePath("../XROrigin3D/hand_left")
-hand_right = NodePath("../XROrigin3D/hand_right")
-
-[node name="ProceduralGrid3D" type="Node3D" parent="canvas"]
-script = ExtResource("3_grid")
-FOCUS_NODE = NodePath("../../XROrigin3D/XRCamera3D")
-
-[node name="ZoneCurtains" type="Node3D" parent="canvas"]
+[node name="ZoneCurtains" type="Node3D" parent="."]
 script = ExtResource("5_curtain")
+zone_count = 3
 
-[node name="Entities" type="Node3D" parent="canvas"]
+[node name="Entities" type="Node3D" parent="."]
 
 [node name="FabricClient" type="Node" parent="."]
 script = ExtResource("4_client")
 zone_host = "127.0.0.1"
-zone_port = 17500
-entities_root = NodePath("../canvas/Entities")
+zone_port = 7443
+entities_root = NodePath("../Entities")
